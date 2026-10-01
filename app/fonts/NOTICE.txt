@@ -1,0 +1,5 @@
+WenQuanYi Micro Hei (wqy-microhei.ttc)
+Copyright (c) 2007-2010 WenQuanYi Board of Trustees and contributors.
+Licensed under the Apache License, Version 2.0. See LICENSE-WenQuanYi-Apache2.txt.
+Bundled so PDF reports can render Chinese without a system CJK font.
+Source: https://github.com/anthonyfok/fonts-wqy-microhei

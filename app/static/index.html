@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BiliCreatorInsights</title>
+<style>
+  :root {
+    --bg: #10140f;
+    --panel: #1a2118;
+    --ink: #e7f0df;
+    --muted: #93a18a;
+    --line: #2c3828;
+    --pink: #e85d8c;
+    --blue: #7dcea0;
+    --neg: #e07a6a;
+    --mid: #d6b25e;
+    --pos: #7dcea0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Songti SC", "Noto Serif SC", serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-end;
+    padding: 22px 28px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { font-size: 28px; margin: 0; letter-spacing: 0.02em; }
+  h1 span { color: var(--pink); }
+  .sub { color: var(--muted); margin: 6px 0 0; font-family: "Segoe UI", "PingFang SC", sans-serif; font-size: 13px; }
+  .controls { display: flex; gap: 8px; align-items: center; font-family: "Segoe UI", "PingFang SC", sans-serif; }
+  select, button, a.btn {
+    background: var(--panel);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: inherit;
+    text-decoration: none;
+  }
+  button { cursor: pointer; }
+  button.primary { background: var(--pink); border-color: var(--pink); color: #1a0b10; font-weight: 700; }
+  main { display: grid; grid-template-columns: 360px 1fr; min-height: calc(100vh - 92px); }
+  aside { border-right: 1px solid var(--line); overflow: auto; max-height: calc(100vh - 92px); }
+  .note { margin: 12px 16px; color: var(--muted); font-family: "Segoe UI", "PingFang SC", sans-serif; font-size: 13px; }
+  .video {
+    width: 100%;
+    text-align: left;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    padding: 12px 16px;
+    color: inherit;
+  }
+  .video.active { background: #243024; }
+  .video b { display: block; font-size: 15px; line-height: 1.35; }
+  .meta { color: var(--muted); font-family: "Segoe UI", "PingFang SC", sans-serif; font-size: 12px; margin-top: 4px; }
+  section { padding: 22px 28px 48px; overflow: auto; max-height: calc(100vh - 92px); }
+  .badge { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; font-size: 12px; font-family: "Segoe UI", sans-serif; }
+  .badge.demo { color: var(--mid); }
+  .badge.live { color: var(--blue); }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 18px; font-family: "Segoe UI", sans-serif; font-size: 13px; color: var(--muted); }
+  .bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: #2a2a2a; margin: 8px 0 14px; }
+  .bar i { display: block; height: 100%; }
+  .pos { background: var(--pos); }
+  .neu { background: var(--mid); }
+  .neg { background: var(--neg); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: #243024; border-radius: 999px; padding: 4px 10px; font-family: "Segoe UI", sans-serif; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  article { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 8px 0; }
+  article h3 { margin: 0 0 6px; font-size: 16px; }
+  p, li { font-family: "Segoe UI", "PingFang SC", sans-serif; line-height: 1.55; }
+  .empty { color: var(--muted); padding: 40px 0; }
+  h2 { font-size: 18px; margin: 22px 0 8px; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    aside, section { max-height: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Bili<span>Creator</span>Insights</h1>
+    <p class="sub">热门视频、评论情绪、观众画像和痛点。演示数据会标明，不会冒充实时统计。</p>
+  </div>
+  <div class="controls">
+    <select id="part">
+      <option value="">全部分区</option>
+      <option>动画</option><option>游戏</option><option>生活</option><option>知识</option>
+      <option>美食</option><option>音乐</option><option>影视</option><option>科技</option>
+      <option>鬼畜</option><option>时尚</option><option>娱乐</option>
+    </select>
+    <button id="reload" type="button">刷新热门</button>
+  </div>
+</header>
+<main>
+  <aside>
+    <div class="note" id="note">正在读取…</div>
+    <div id="list"></div>
+  </aside>
+  <section id="detail"><p class="empty">从左侧选一条视频。</p></section>
+</main>
+<script>
+const note = document.getElementById("note");
+const list = document.getElementById("list");
+const detail = document.getElementById("detail");
+let current = null;
+let videos = [];
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text != null) node.textContent = text;
+  return node;
+}
+function fmt(n) {
+  return Number(n || 0).toLocaleString("zh-CN");
+}
+async function getJSON(url, options) {
+  const res = await fetch(url, options);
+  const body = await res.json().catch(() => ({ ok: false, error: "bad json" }));
+  if (!res.ok || !body.ok) throw new Error(body.error || ("HTTP " + res.status));
+  return body.data;
+}
+async function loadHot(refresh) {
+  note.textContent = refresh ? "正在向 B 站请求热门列表…" : "正在读取…";
+  const q = new URLSearchParams();
+  const part = document.getElementById("part").value;
+  if (part) q.set("partition", part);
+  if (refresh) q.set("refresh", "true");
+  q.set("limit", "60");
+  try {
+    const data = await getJSON("/api/videos/hot?" + q.toString());
+    videos = data.videos || [];
+    const src = data.source === "demo" ? "演示数据" : data.source === "live" ? "B 站实时" : data.source;
+    note.textContent = (data.note ? data.note + " " : "") + `来源 ${src}，本页 ${data.count} 条，库内 ${data.stored} 条。`;
+    list.innerHTML = "";
+    videos.forEach((v) => {
+      const btn = el("button", "video" + (current === v.bvid ? " active" : ""));
+      btn.type = "button";
+      btn.appendChild(el("b", null, v.title));
+      btn.appendChild(el("div", "meta", `${v.author} · ${v.category} · 热度 ${Number(v.heat_score).toFixed(2)} · 趋势 ${Number(v.trend_score).toFixed(2)} · 播放 ${fmt(v.view_count)}`));
+      btn.onclick = () => openVideo(v.bvid);
+      list.appendChild(btn);
+    });
+    if (!videos.length) list.appendChild(el("div", "note", "这个分区下面没有视频。"));
+  } catch (err) {
+    note.textContent = "读取失败：" + err.message;
+  }
+}
+function block(title) {
+  const h = el("h2", null, title);
+  detail.appendChild(h);
+}
+async function openVideo(bvid) {
+  current = bvid;
+  document.querySelectorAll(".video").forEach((n, i) => n.classList.toggle("active", videos[i] && videos[i].bvid === bvid));
+  detail.innerHTML = "";
+  detail.appendChild(el("p", "empty", "正在加载…"));
+  try {
+    const [video, analysis] = await Promise.all([
+      getJSON("/api/videos/" + bvid),
+      getJSON("/api/videos/" + bvid + "/analysis"),
+    ]);
+    detail.innerHTML = "";
+    const title = el("h2", null, video.title);
+    title.style.marginTop = "0";
+    detail.appendChild(title);
+    const badge = el("span", "badge " + (video.is_demo ? "demo" : "live"), video.is_demo ? "演示数据" : "实时采集");
+    detail.appendChild(badge);
+    const meta = el("div", "stats");
+    meta.textContent = `${video.author} · ${video.category} · 播放 ${fmt(video.view_count)} · 点赞 ${fmt(video.like_count)} · 评论 ${fmt(video.comment_count)} · 分享 ${fmt(video.share_count)} · 热度 ${Number(video.heat_score).toFixed(2)} · 趋势 ${Number(video.trend_score).toFixed(2)}`;
+    detail.appendChild(meta);
+    const actions = el("div", "controls");
+    const go = el("button", "primary", "分析这条视频");
+    go.type = "button";
+    go.onclick = () => analyze(bvid, go);
+    actions.appendChild(go);
+    const md = el("a", "btn", "下载 Markdown");
+    md.href = "/api/videos/" + bvid + "/report.md";
+    const pdf = el("a", "btn", "下载 PDF");
+    pdf.href = "/api/videos/" + bvid + "/report.pdf";
+    actions.appendChild(md);
+    actions.appendChild(pdf);
+    detail.appendChild(actions);
+    const status = el("p", "meta", "");
+    status.id = "status";
+    detail.appendChild(status);
+    renderAnalysis(analysis);
+  } catch (err) {
+    detail.innerHTML = "";
+    detail.appendChild(el("p", "empty", err.message));
+  }
+}
+function renderAnalysis(a) {
+  block("摘要");
+  detail.appendChild(el("p", null, a.summary || "暂无"));
+  const s = a.sentiment || {};
+  block("情绪");
+  const bar = el("div", "bar");
+  const p = el("i", "pos"); p.style.width = (s.positive_pct || 0) + "%";
+  const n = el("i", "neu"); n.style.width = (s.neutral_pct || 0) + "%";
+  const g = el("i", "neg"); g.style.width = (s.negative_pct || 0) + "%";
+  bar.append(p, n, g);
+  detail.appendChild(bar);
+  detail.appendChild(el("div", "meta", `正面 ${s.positive_pct || 0}% · 中性 ${s.neutral_pct || 0}% · 负面 ${s.negative_pct || 0}% · 平均分 ${s.avg_score ?? "-"} · 有效评论 ${s.total || 0}`));
+  block("关键词");
+  const chips = el("div", "chips");
+  ((a.keywords || {}).keywords || []).forEach((k) => chips.appendChild(el("span", "chip", `${k.word} ${k.count}`)));
+  if (!chips.childNodes.length) chips.appendChild(el("span", "meta", "暂无"));
+  detail.appendChild(chips);
+  const co = ((a.keywords || {}).cooccurrence || []).slice(0, 8).map((x) => `${x.a}+${x.b}(${x.count})`).join("  ");
+  if (co) detail.appendChild(el("p", "meta", "共现 " + co));
+  block("画像");
+  const groups = (a.profiles || {}).groups || [];
+  if (!groups.length) detail.appendChild(el("p", "meta", "暂无"));
+  groups.forEach((item) => {
+    const card = el("article");
+    card.appendChild(el("h3", null, `${item.emotion_type} · ${item.count} 人`));
+    card.appendChild(el("p", null, `正面占比 ${item.avg_positive_ratio}，负面占比 ${item.avg_negative_ratio}。关键词 ${(item.top_keywords || []).join("、") || "无"}。风格 ${(item.style_tags || []).join("、")}`));
+    detail.appendChild(card);
+  });
+  block("痛点");
+  const pains = a.pain_points || [];
+  if (!pains.length) detail.appendChild(el("p", "meta", "暂无集中痛点"));
+  pains.forEach((item) => {
+    const card = el("article");
+    card.appendChild(el("h3", null, `${item.theme} · 优先度 ${item.priority}`));
+    card.appendChild(el("p", null, `${item.root_cause} 频率 ${item.frequency}，负面占比 ${item.negative_ratio}。`));
+    (item.sample_comments || []).forEach((text) => card.appendChild(el("p", null, "“" + text + "”")));
+    detail.appendChild(card);
+  });
+  block("建议");
+  const ul = document.createElement("ul");
+  (a.suggestions || []).forEach((text) => ul.appendChild(el("li", null, text)));
+  if (!ul.childNodes.length) ul.appendChild(el("li", null, "暂无"));
+  detail.appendChild(ul);
+}
+async function analyze(bvid, button) {
+  const status = document.getElementById("status");
+  button.disabled = true;
+  status.textContent = "任务已提交…";
+  try {
+    const task = await getJSON("/api/tasks/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bvid }),
+    });
+    for (let i = 0; i < 60; i++) {
+      const cur = await getJSON("/api/tasks/" + task.task_id);
+      status.textContent = "状态 " + cur.status + (cur.error ? " · " + cur.error : "");
+      if (cur.status === "done" || cur.status === "failed") break;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    const analysis = await getJSON("/api/videos/" + bvid + "/analysis");
+    const keepTitle = true;
+    await openVideo(bvid);
+    if (keepTitle) document.getElementById("status").textContent = status.textContent;
+  } catch (err) {
+    status.textContent = err.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+document.getElementById("reload").onclick = () => loadHot(true);
+document.getElementById("part").onchange = () => loadHot(false);
+loadHot(false);
+</script>
+</body>
+</html>
